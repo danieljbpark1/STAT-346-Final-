@@ -1,0 +1,231 @@
+---
+title: "STAT 346 EQ21"
+author: "Daniel Park"
+date: "11/26/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The dataset I analyzed contains information about cars, and I wanted to predict a car's mpg using its attributes because the EPA has a complicated set of rules in place involving drive cycles and formulas, regulating how car manufacturers have to evaluate mpg. My question is, can we use attributes about a car that are easier to measure to predict mpg?
+
+The dataset I'm analyzing for the project was published in 1983 and contains data on 398 cars. There are 5 continuous predictors and 3 discrete, multi-valued predictors: 
+  number of cylinders
+  engine displacement in cubic inches
+  horsepower
+  weight in pounds
+  time it takes to accelerate from 0 to 60 mph in seconds
+  model year in the 1900s
+  origin of the car (1. American, 2. European, 3. Japanese)
+  and car name. 
+
+According to the UCI Archive I got the dataset from, it was presented at the American Statistical Association's 1983 Exposition, so I'm not concerned about data collection, and it doesn't have any missing values.
+
+```{r message=FALSE, warning=FALSE }
+library(GGally)
+library(car)
+library(MASS)
+library(tidyverse)
+library(glmnet)
+
+# read in data
+mpg.dat <- read.table("http://archive.ics.uci.edu/ml/machine-learning-databases/auto-mpg/auto-mpg.data", 
+                      header = FALSE)
+colnames(mpg.dat) <- c("mpg", "cylinders", "displacement", "horsepower", "weight", "acceleration", 
+                       "model.year", "origin", "car.name")
+
+# ensure predictor type
+mpg.dat$cylinders <- as.factor(mpg.dat$cylinders)
+mpg.dat$horsepower <- as.numeric(mpg.dat$horsepower)
+mpg.dat$origin <- as.factor(mpg.dat$origin)
+
+# remove car name from dataset
+mpg.dat <- mpg.dat[1:(ncol(mpg.dat)-1)]
+
+
+head(mpg.dat)
+summary(mpg.dat)
+
+# correlation matrix of quantitative predictors
+# cor(mpg.dat[,c(1,3:7)])
+```
+```{r warning=FALSE, message=FALSE}
+GGally::ggpairs(mpg.dat)
+```
+
+```{r}
+ggplot(mpg.dat, aes(horsepower)) +
+  geom_histogram()
+
+ggplot(mpg.dat, aes(acceleration)) +
+  geom_histogram()
+  
+
+```
+
+
+Diagnostics and conditions:
+  Is linear model appropriate?
+    Slight quadratic shape to residuals, but we'll proceed.
+  Are errors normal?
+    QQ plot looks good, although there are some points that trail upward on the right.
+  Constant variance?
+    Definitely not met by looking at Fitted Residuals plot.
+  Multicollinearity? Are predictor coeffs stable?
+    High VIFs (above 5) for Cylinders, Displacement, and Weight.
+
+  High residuals?
+    There are about 10 cars with high square rooted absolute standardized residuals close to 2 that may be pulling coefficients toward a certain direction.
+  High leverage?
+  Influential points?
+    Cars \#328and \#275 have Cook's distance values close to 0.5, probably because they belong to the $\textrm{Cylinders}=5$ class.
+
+From the summary, we see that there are only 4 cars with $\textrm{cylinders}=3$ and only 3 with $\textrm{cylinders}=5$. If Cylinders is in my model, these 7 cars may have really high influence because they are one of few used in predicting the mpg of a car with 3 or 4 cylinders. The correlation matrix shows a correlation coefficient of 0.93 between Displacement and Weight, so there may be an issue with multicollinearity, which is further supported by large VIFs for Cylinders and Displacement in a full model with no interactions. I'm worried about a non-constant variance of residuals shown in the Residuals vs. Fitted plot, and a quadratic pattern to the residuals. There are some points in the Residuals vs Leverage plot with really high leverage, but this may be due to the cars I pointed out earlier.
+
+```{r}
+# full model no interactions
+full.model <- lm(mpg~cylinders+displacement+horsepower+weight+acceleration+model.year+origin, data=mpg.dat)
+summary(full.model)
+
+plot(full.model)
+```
+
+
+```{r}
+vif(full.model)
+```
+
+These are the cars with largest residuals.
+```{r}
+tail(mpg.dat[order(abs(full.model$residuals)),])
+tail(mpg.dat[order(hatvalues(full.model)),], 8)
+# rstandard()
+# hatvalues()
+```
+
+
+Fixes for non-linear relationship:
+
+Transform the $y$, mpg.
+Box-Cox suggests a lambda close to 0, which means a log-transformation of the response.
+
+```{r}
+bc = boxcox(full.model)
+bc$x[which.min(abs(bc$x-0))]
+bc$x[which.min(abs(bc$x+0.5))]
+```
+
+Whoa. Regressing the log of mpg on the predictors works wonders. Our fitted residuals plot shows no pattern and homoskedasticity. Normal QQ plot looks roughly linear. Still concerned with high standardized residuals around 4 in magnitude.
+```{r}
+mpg.dat <- mpg.dat %>% mutate(log.mpg = log(mpg))
+log.model <- lm(log.mpg~cylinders+displacement+horsepower+weight+acceleration+model.year+origin, data=mpg.dat)
+summary(log.model)
+plot(log.model)
+```
+
+Multicollinearity still an issue.
+```{r}
+vif(log.model)
+```
+
+Now on to fixing multicollinearity. 
+
+Drop high-VIF predictors one-by-one.
+```{r}
+n = nrow(mpg.dat)
+
+log.model2 <- lm(log.mpg~cylinders+horsepower+weight+acceleration+model.year+origin, data=mpg.dat)
+vif(log.model2)
+```
+
+```{r}
+log.model3 <- lm(log.mpg~horsepower+weight+acceleration+model.year+origin, data=mpg.dat)
+vif(log.model3)
+```
+
+Bidirectional stepwise regression using AIC criterion. 
+
+$\widehat{\textrm{log(mpg)}} =1.45+0.0005\cdot\textrm{horsepower}-0.0003\cdot\textrm{weight}+0.032\cdot\textrm{model year}+0.073\cdot\textrm{origin2}+0.056\cdot\textrm{origin3} $
+```{r}
+step.reg <- step(log.model3, direction = "both", trace = 0)
+summary(step.reg)
+par(mfrow=c(2,2))
+plot(step.reg)
+```
+
+Multicollinearity not an issue.
+```{r}
+vif(step.reg)
+
+mpg.dat <- mpg.dat %>% mutate("log.hats"=predict(step.reg))
+
+ggplot(mpg.dat, aes(model.year, exp(log.hats), colour = origin)) +
+  geom_point() +
+  labs(x="Years since 1900", y="Predicted mpg") +
+  scale_color_hue(labels = c("American", "European", "Japanese"))
+
+```
+
+```{r}
+avPlots(step.reg)
+```
+
+PCA requires the columns to be quantitative, so that's out. I try LASSO regression because I want coefficients potentially going to 0 (I know three are not significant in the full log model).
+
+```{r}
+mpg.x = model.matrix(log.mpg ~ cylinders+displacement+horsepower+weight+acceleration+model.year+origin,
+                     data=mpg.dat)
+mpg.y = mpg.dat$log.mpg 
+mpg.fit.lasso = glmnet(mpg.x, mpg.y, alpha=1)
+
+plot(mpg.fit.lasso, xvar="lambda", label=TRUE)
+```
+
+
+```{r}
+mpg.cv.lasso = cv.glmnet(mpg.x, mpg.y, alpha=1)
+plot(mpg.cv.lasso)
+coef(mpg.cv.lasso, s = "lambda.min")
+
+opt.lambda <- mpg.cv.lasso$lambda.min
+
+x <- mpg.x
+y_predicted <- predict(mpg.fit.lasso, s = opt.lambda, newx=mpg.x)
+y <- mpg.y
+
+# Sum of Squares Total and Error
+sst <- sum((y - mean(y))^2)
+sse <- sum((y_predicted - y)^2)
+
+# R squared
+rsq <- 1 - sse / sst
+rsq
+
+```
+
+
+The 7 highest hat values belong to the cars in the Cylinder = 3 and 5 category because there are so few cars determing coefficients.
+```{r}
+tail(mpg.dat[order(hatvalues(step.reg)),], 8)
+```
+
+Further research:
+  Given more recent data, try to predict mpg.
+  I don't know much about cars, so there may be other variables I should be measuring as predictors that I'm not including.
+  
+
+
+What if we tried IRLS on non-transformed data to fix heteroskedasticity?
+```{r warning=FALSE, message=FALSE}
+library(nlme)
+irls <- gls(mpg~cylinders+displacement+weight+acceleration+model.year+origin,weights=varPower(), data=mpg.dat)
+summary(irls)
+plot(irls)
+```
+
+
+2. Sometimes, using a line to estimate the mean response is not appropriate given the responses we have. When the response is binary, we can use a sigmoidal function to make predictions.
+
+3. I still don't 100% understand the connection between logistic regression, Poisson regression, and the generalized linear model. 
