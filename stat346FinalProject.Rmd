@@ -1,6 +1,6 @@
 ---
-title: "STAT 346 EQ21"
-author: "Daniel Park"
+title: "Predicting mpg With Linear Regression"
+author: "Daniel J. Park"
 date: "11/26/2018"
 output: pdf_document
 ---
@@ -9,7 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-The dataset I analyzed contains information about cars, and I wanted to predict a car's mpg using its attributes because the EPA has a complicated set of rules in place involving drive cycles and formulas, regulating how car manufacturers have to evaluate mpg. My question is, can we use attributes about a car that are easier to measure to predict mpg?
+When measuring a new model's miles per gallon (mpg) range, automobile manufacturers follow complicated EPA rules that involve multiple drive cycles and formulas. I aim to investigate a dataset of cars to evaluate whether we can predict mpg from a car's other features rather than physically conducting road tests.
 
 The dataset I'm analyzing for the project was published in 1983 and contains data on 398 cars. There are 5 continuous predictors and 3 discrete, multi-valued predictors: 
   number of cylinders
