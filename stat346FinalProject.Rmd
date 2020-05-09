@@ -9,6 +9,8 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Introduction
+
 When measuring a new model's miles per gallon (mpg) range, automobile manufacturers follow complicated EPA rules that involve multiple drive cycles and formulas. I aim to investigate a dataset of cars to evaluate whether we can predict mpg from a car's other features rather than physically conducting road tests.
 
 The dataset used for this analysis was published in 1983 and contains data on 398 cars. There are 5 continuous predictors and 3 discrete, multi-valued predictors: 
@@ -21,7 +23,7 @@ The dataset used for this analysis was published in 1983 and contains data on 39
   model origin (1. American 2. European 3. Japanese)
   car name. 
 
-According to the dataset's source, UCI Dataset Archive, it was presented at the American Statistical Association's 1983 Exposition, so we don't need to be concerned with data collection errors or missing values.
+According to the dataset's source, UCI Dataset Archive, it was presented at the American Statistical Association's 1983 Exposition, so we don't need to be concerned with data collection errors or missing values. My principal goal is interpretability of model coefficients rather than best prediction accuracy, so I won't scale the variables.
 
 ```{r message=FALSE, warning=FALSE }
 library(GGally)
@@ -59,50 +61,41 @@ One quick take-away from this paired plot is that some of the explanatory variab
 GGally::ggpairs(mpg.dat)
 ```
 
-Diagnostics and conditions:
-  Is linear model appropriate?
-    Slight quadratic shape to residuals, but we'll proceed.
-  Are errors normal?
-    QQ plot looks good, although there are some points that trail upward on the right.
-  Constant variance?
-    Definitely not met by looking at Fitted Residuals plot.
-  Multicollinearity? Are predictor coeffs stable?
-    High VIFs (above 5) for Cylinders, Displacement, and Weight.
+# Model Fitting
 
-  High residuals?
-    There are about 10 cars with high square rooted absolute standardized residuals close to 2 that may be pulling coefficients toward a certain direction.
-  High leverage?
-  Influential points?
-    Cars \#328and \#275 have Cook's distance values close to 0.5, probably because they belong to the $\textrm{Cylinders}=5$ class.
+## OLS Linear Regression
 
-From the summary, we see that there are only 4 cars with $\textrm{cylinders}=3$ and only 3 with $\textrm{cylinders}=5$. If Cylinders is in my model, these 7 cars may have really high influence because they are one of few used in predicting the mpg of a car with 3 or 4 cylinders. The correlation matrix shows a correlation coefficient of 0.93 between Displacement and Weight, so there may be an issue with multicollinearity, which is further supported by large VIFs for Cylinders and Displacement in a full model with no interactions. I'm worried about a non-constant variance of residuals shown in the Residuals vs. Fitted plot, and a quadratic pattern to the residuals. There are some points in the Residuals vs Leverage plot with really high leverage, but this may be due to the cars I pointed out earlier.
+### Fitting a full model
+
+After fitting a full model with no interactions, we check model diagnostics:
+As shown in the Fitted Residuals plot, there is a slight quadratic shape to the residuals, so we'll proceed with caution with the linear model. Heteroskedasticity is clearly evident, we'll want to consider fixes for this condition. The QQ plot tells us that the errors are approximately normal, although there are some points that deviate from normality on the upper tail. Multicollinearity may also be an issue as the VIF table shows that Cylinders, Displacement, and Weight have the highest VIF values, meaning their coefficients have the highest variance and are not stable.  
+
+Large residuals? All 5 cars with the greatest square root absolute standardized residuals belong to European or Japanese origin. I suspect that shifting the best fit line by the Origin coefficient is a reason, and the fix may be to allow interactions between Origin and other covariates.
 
 ```{r}
-# full model no interactions
-full.model <- lm(mpg~cylinders+displacement+horsepower+weight+acceleration+model.year+origin, data=mpg.dat)
+# full model with no interactions
+full.model <- lm(mpg~., data=mpg.dat)
 summary(full.model)
 
 plot(full.model)
 ```
 
-
 ```{r}
 vif(full.model)
 ```
 
-These are the cars with largest residuals.
+These are the cars with largest residuals and hat values.
 ```{r}
-tail(mpg.dat[order(abs(full.model$residuals)),])
-tail(mpg.dat[order(hatvalues(full.model)),], 8)
+tail(mpg.dat[order(abs(full.model$residuals)), ])
+tail(mpg.dat[order(hatvalues(full.model)),])
 # rstandard()
 # hatvalues()
 ```
 
+## Trying a non-linear transformation
 
-Fixes for non-linear relationship:
-
-Transform the $y$, mpg.
-Box-Cox suggests a lambda close to 0, which means a log-transformation of the response.
+Fixes for a non-linear relationship: Transform the response variable mpg.
+The Box-Cox method suggests a lambda close to 0, which means a log-transformation of the response.
 
 ```{r}
 bc = boxcox(full.model)
@@ -110,20 +103,24 @@ bc$x[which.min(abs(bc$x-0))]
 bc$x[which.min(abs(bc$x+0.5))]
 ```
 
-Whoa. Regressing the log of mpg on the predictors works wonders. Our fitted residuals plot shows no pattern and homoskedasticity. Normal QQ plot looks roughly linear. Still concerned with high standardized residuals around 4 in magnitude.
+Once we regressed the log of mpg on the predictors, the residuals are no longer displaying the heteroskedasticity we saw before, while there is still no apparent non-linear shape and they are still approximately normal. The standardized residuals are also not as large as before. While the interpretability of the coefficients in relation to the response becomes less straightforward, the log transformation seems more appropriate.
+
 ```{r}
+# the log-transform model
 mpg.dat <- mpg.dat %>% mutate(log.mpg = log(mpg))
 log.model <- lm(log.mpg~cylinders+displacement+horsepower+weight+acceleration+model.year+origin, data=mpg.dat)
+
 summary(log.model)
 plot(log.model)
 ```
 
-Multicollinearity still an issue.
+But we still haven't addressed multicollinearity.
+
 ```{r}
 vif(log.model)
 ```
 
-Now on to fixing multicollinearity. 
+## Fixing multicollinearity
 
 Drop high-VIF predictors one-by-one.
 ```{r}
@@ -205,6 +202,7 @@ tail(mpg.dat[order(hatvalues(step.reg)),], 8)
 ```
 
 Further research:
+  Interaction terms.
   Given more recent data, try to predict mpg.
   I don't know much about cars, so there may be other variables I should be measuring as predictors that I'm not including.
   
@@ -220,5 +218,3 @@ plot(irls)
 
 
 2. Sometimes, using a line to estimate the mean response is not appropriate given the responses we have. When the response is binary, we can use a sigmoidal function to make predictions.
-
-3. I still don't 100% understand the connection between logistic regression, Poisson regression, and the generalized linear model. 
