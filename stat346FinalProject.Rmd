@@ -122,7 +122,10 @@ vif(log.model)
 
 ## Fixing multicollinearity
 
+### Manual step-wise
+
 Drop high-VIF predictors one-by-one.
+
 ```{r}
 n = nrow(mpg.dat)
 
@@ -135,13 +138,15 @@ log.model3 <- lm(log.mpg~horsepower+weight+acceleration+model.year+origin, data=
 vif(log.model3)
 ```
 
+### Automatic step-wise
+
 Bidirectional stepwise regression using AIC criterion. 
 
-$\widehat{\textrm{log(mpg)}} =1.45+0.0005\cdot\textrm{horsepower}-0.0003\cdot\textrm{weight}+0.032\cdot\textrm{model year}+0.073\cdot\textrm{origin2}+0.056\cdot\textrm{origin3} $
 ```{r}
 step.reg <- step(log.model3, direction = "both", trace = 0)
+
 summary(step.reg)
-par(mfrow=c(2,2))
+
 plot(step.reg)
 ```
 
@@ -161,6 +166,8 @@ ggplot(mpg.dat, aes(model.year, exp(log.hats), colour = origin)) +
 ```{r}
 avPlots(step.reg)
 ```
+
+### LASSO regularization
 
 PCA requires the columns to be quantitative, so that's out. I try LASSO regression because I want coefficients potentially going to 0 (I know three are not significant in the full log model).
 
