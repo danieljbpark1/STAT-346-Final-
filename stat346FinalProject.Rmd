@@ -11,17 +11,17 @@ knitr::opts_chunk$set(echo = TRUE)
 
 When measuring a new model's miles per gallon (mpg) range, automobile manufacturers follow complicated EPA rules that involve multiple drive cycles and formulas. I aim to investigate a dataset of cars to evaluate whether we can predict mpg from a car's other features rather than physically conducting road tests.
 
-The dataset I'm analyzing for the project was published in 1983 and contains data on 398 cars. There are 5 continuous predictors and 3 discrete, multi-valued predictors: 
+The dataset used for this analysis was published in 1983 and contains data on 398 cars. There are 5 continuous predictors and 3 discrete, multi-valued predictors: 
   number of cylinders
   engine displacement in cubic inches
   horsepower
   weight in pounds
   time it takes to accelerate from 0 to 60 mph in seconds
-  model year in the 1900s
-  origin of the car (1. American, 2. European, 3. Japanese)
-  and car name. 
+  model year from 1900
+  model origin (1. American 2. European 3. Japanese)
+  car name. 
 
-According to the UCI Archive I got the dataset from, it was presented at the American Statistical Association's 1983 Exposition, so I'm not concerned about data collection, and it doesn't have any missing values.
+According to the dataset's source, UCI Dataset Archive, it was presented at the American Statistical Association's 1983 Exposition, so we don't need to be concerned with data collection errors or missing values.
 
 ```{r message=FALSE, warning=FALSE }
 library(GGally)
