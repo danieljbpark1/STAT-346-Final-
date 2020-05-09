@@ -30,41 +30,34 @@ library(MASS)
 library(tidyverse)
 library(glmnet)
 
-# read in data
+# read the data
 mpg.dat <- read.table("http://archive.ics.uci.edu/ml/machine-learning-databases/auto-mpg/auto-mpg.data", 
                       header = FALSE)
 colnames(mpg.dat) <- c("mpg", "cylinders", "displacement", "horsepower", "weight", "acceleration", 
                        "model.year", "origin", "car.name")
 
-# ensure predictor type
-mpg.dat$cylinders <- as.factor(mpg.dat$cylinders)
+# modify predictor types
+mpg.dat$cylinders <- as.numeric(mpg.dat$cylinders)
 mpg.dat$horsepower <- as.numeric(mpg.dat$horsepower)
 mpg.dat$origin <- as.factor(mpg.dat$origin)
 
 # remove car name from dataset
-mpg.dat <- mpg.dat[1:(ncol(mpg.dat)-1)]
-
-
-head(mpg.dat)
-summary(mpg.dat)
-
-# correlation matrix of quantitative predictors
-# cor(mpg.dat[,c(1,3:7)])
-```
-```{r warning=FALSE, message=FALSE}
-GGally::ggpairs(mpg.dat)
+mpg.dat <- mpg.dat[ , !(names(mpg.dat) %in% c("car.name"))]
 ```
 
 ```{r}
-ggplot(mpg.dat, aes(horsepower)) +
-  geom_histogram()
-
-ggplot(mpg.dat, aes(acceleration)) +
-  geom_histogram()
-  
-
+str(mpg.dat)
+```
+ 
+```{r}
+summary(mpg.dat)
 ```
 
+One quick take-away from this paired plot is that some of the explanatory variables are strongly correlated with each other. For example, the Pearson correlation between displacement and weight is $\rho=0.933$. We may have redundant covariates if we use all of them in a full model.
+
+```{r warning=FALSE, message=FALSE}
+GGally::ggpairs(mpg.dat)
+```
 
 Diagnostics and conditions:
   Is linear model appropriate?
