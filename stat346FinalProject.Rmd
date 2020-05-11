@@ -209,19 +209,18 @@ rsq
 ```
 
 Further research:
-  Interaction terms.
-  Given more recent data, try to predict mpg.
-  I don't know much about cars, so there may be other variables I should be measuring as predictors that I'm not including.
+  Interaction terms (the response might vary differently according to the car origin).
+  Use more recent data (the dataset is from 1983).
+  Different algorithms to decrease MSE.
   
+What if we tried IRLS on a non-transformed response to address heteroskedasticity? I still see a slight curved shape to the fitted residuals, which could mean that a linear relationship is not the most appropriate.
 
-
-What if we tried IRLS on non-transformed data to fix heteroskedasticity?
 ```{r warning=FALSE, message=FALSE}
 library(nlme)
-irls <- gls(mpg~cylinders+displacement+weight+acceleration+model.year+origin, 
+mpg.irls <- gls(mpg~cylinders+displacement+weight+acceleration+model.year+origin, 
             weights=varPower(), 
             data=mpg.dat)
 
-summary(irls)
-plot(irls)
+summary(mpg.irls)
+plot(mpg.irls)
 ```
