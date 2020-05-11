@@ -124,7 +124,7 @@ vif(log.model)
 
 ### Manual step-wise
 
-Drop high-VIF predictors one-by-one.
+We could drop high-VIF predictors one-by-one.
 
 ```{r}
 n = nrow(mpg.dat)
@@ -140,10 +140,10 @@ vif(log.model3)
 
 ### Automatic step-wise
 
-Bidirectional stepwise regression using AIC criterion. 
+Or perform bidirectional stepwise regression using AIC criterion. 
 
 ```{r}
-step.reg <- step(log.model3, direction = "both", trace = 0)
+step.reg <- step(log.model, direction = "both", trace = 0)
 
 summary(step.reg)
 
@@ -169,12 +169,13 @@ avPlots(step.reg)
 
 ### LASSO regularization
 
-PCA requires the columns to be quantitative, so that's out. I try LASSO regression because I want coefficients potentially going to 0 (I know three are not significant in the full log model).
+Now I want to try a regularization method for regressing the log(mpg). LASSO regularization allows coefficients to shrink to zero, which is acceptable since I know some covariates are not necessary.
 
 ```{r}
 mpg.x = model.matrix(log.mpg ~ cylinders+displacement+horsepower+weight+acceleration+model.year+origin,
                      data=mpg.dat)
 mpg.y = mpg.dat$log.mpg 
+
 mpg.fit.lasso = glmnet(mpg.x, mpg.y, alpha=1)
 
 plot(mpg.fit.lasso, xvar="lambda", label=TRUE)
@@ -182,30 +183,29 @@ plot(mpg.fit.lasso, xvar="lambda", label=TRUE)
 
 
 ```{r}
+# cross validation to find optimal lambda regularization parameter
 mpg.cv.lasso = cv.glmnet(mpg.x, mpg.y, alpha=1)
 plot(mpg.cv.lasso)
 coef(mpg.cv.lasso, s = "lambda.min")
 
 opt.lambda <- mpg.cv.lasso$lambda.min
+```
 
+LASSO regularization shrunk the coefficient for Displacement completely to zero. Our $R^2$ is slightly higher than the stepwise regression model.
+
+```{r}
 x <- mpg.x
 y_predicted <- predict(mpg.fit.lasso, s = opt.lambda, newx=mpg.x)
 y <- mpg.y
 
 # Sum of Squares Total and Error
-sst <- sum((y - mean(y))^2)
+ssto <- sum((y - mean(y))^2)
 sse <- sum((y_predicted - y)^2)
 
 # R squared
-rsq <- 1 - sse / sst
+rsq <- 1 - sse / ssto
 rsq
 
-```
-
-
-The 7 highest hat values belong to the cars in the Cylinder = 3 and 5 category because there are so few cars determing coefficients.
-```{r}
-tail(mpg.dat[order(hatvalues(step.reg)),], 8)
 ```
 
 Further research:
@@ -218,10 +218,10 @@ Further research:
 What if we tried IRLS on non-transformed data to fix heteroskedasticity?
 ```{r warning=FALSE, message=FALSE}
 library(nlme)
-irls <- gls(mpg~cylinders+displacement+weight+acceleration+model.year+origin,weights=varPower(), data=mpg.dat)
+irls <- gls(mpg~cylinders+displacement+weight+acceleration+model.year+origin, 
+            weights=varPower(), 
+            data=mpg.dat)
+
 summary(irls)
 plot(irls)
 ```
-
-
-2. Sometimes, using a line to estimate the mean response is not appropriate given the responses we have. When the response is binary, we can use a sigmoidal function to make predictions.
